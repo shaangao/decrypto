@@ -1,0 +1,14 @@
+dotenv
+nltk
+gensim
+scipy
+numpy
+tqdm
+anthropic
+openai
+pandas
+torch
+requests
+hydra-core
+litellm
+vllm
