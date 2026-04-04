@@ -7,9 +7,11 @@
 import subprocess
 
 agent_paths = {
+    "llama3.2_1B": "meta-llama/Llama-3.2-1B-Instruct",
     "llama3.1_8B": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "llama3.1_70B": "meta-llama/Meta-Llama-3.1-70B-Instruct",
     "deepseek_r1_32B": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",  # DeepSeek R1 Distilled
+    "qwen2_1.5B": "Qwen/Qwen2-1.5B",
 }
 
 
@@ -27,15 +29,22 @@ def get_available_servers():
     for line in lines[1:]:
         line = line.strip('"')
         # Get job name, nodelist, and status
-        job_name, nodelist, status, job_id = line.split(", ")
+        full_job_name, nodelist, status, job_id = line.split(", ")
 
         assert "[" not in nodelist, "Multi-node servers not currently supported."
+
+        # Parse out the job name and port (if you added it)
+        if ":" in full_job_name:
+            job_name, port = full_job_name.split(":")
+        else:
+            job_name = full_job_name
+            port = "8000" # Fallback
 
         # Keep only running jobs
         if status == "RUNNING" and job_name != "bash":
             try:
                 model_path = agent_paths[job_name]
-                server_address = f"http://{nodelist}:8000/v1"
+                server_address = f"http://{nodelist}:{port}/v1"
 
                 # Check if a model with the same key already exists
                 existing_model = next(

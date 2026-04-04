@@ -218,73 +218,140 @@ class RoleClient:
             messages = self.history.copy()
             messages.append(message_dict)
 
-        try:
-            if self.model_key.startswith("claude"):
-                if self.max_reasoning_tokens <= 0:
-                    response = self.client.messages.create(
+        # try:
+        import time
+        import random
+        import openai
+        
+        max_retries = 10
+        base_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                if self.model_key.startswith("claude"):
+                    # --- debug ---
+                    print("DEBUG: Starting Claude chat completion")
+                    # -----------------
+                    if self.max_reasoning_tokens <= 0:
+                        response = self.client.messages.create(
+                            model=self.model_id,
+                            messages=messages,
+                            system=self.system_prompt,
+                            max_tokens=self.max_tokens,
+                            temperature=self.temperature,
+                        )
+                        content = response.content[0].text
+                    else:
+                        # Extended Thinking
+                        # --- debug ---
+                        import json
+                        print(json.dumps({
+                            "model": self.model_id,
+                            "max_tokens": self.max_tokens,
+                            "thinking": {"type": "enabled", "budget_tokens": self.max_reasoning_tokens},
+                            "system": self.system_prompt,
+                            "messages": messages,
+                        }, indent=2))
+                        # -----------------
+                        response = self.client.messages.create(
+                            model=self.model_id,
+                            messages=messages,
+                            system=self.system_prompt,
+                            max_tokens=self.max_tokens,
+                            thinking={
+                                "type": "enabled",
+                                "budget_tokens": self.max_reasoning_tokens,
+                            },
+                            # temperature=self.temperature, # No temp if thinking
+                        )
+                        # --- debug ---
+                        print(f"response.content: {response.content}")
+                        # -----------------
+                        # Model outputs thinking and text blocks. Need to parse accordingly
+                        # content = [c.text for c in response.content if c.type == "text"][0]
+                        text_blocks = [c.text for c in response.content if c.type == "text"]
+                        if not text_blocks:
+                            print(f"DEBUG: No text block found! Raw response: {response.content}", flush=True)
+                            raise ValueError("Model failed to return a text block (likely hit max_tokens during thinking).")
+                        content = text_blocks[0]
+
+                elif self.model_key.startswith("gpt"):
+                    # --- debug ---
+                    print("DEBUG: Starting gpt chat completion")
+                    # -----------------
+                    if self.use_litellm:
+                        completion_method = self.client.completion_create
+                    else:
+                        completion_method = self.client.chat.completions.create
+
+                    response = completion_method(
                         model=self.model_id,
                         messages=messages,
-                        system=self.system_prompt,
                         max_tokens=self.max_tokens,
                         temperature=self.temperature,
+                        seed=self.seed,
                     )
-                    content = response.content[0].text
-                else:
-                    # Extended Thinking
-                    response = self.client.messages.create(
+                    content = response.choices[0].message.content
+
+                elif self.model_key.startswith("o1") or self.model_key.startswith("o3"):
+                    response = self.client.chat.completions.create(
                         model=self.model_id,
                         messages=messages,
-                        system=self.system_prompt,
-                        max_tokens=self.max_tokens,
-                        thinking={
-                            "type": "enabled",
-                            "budget_tokens": self.max_reasoning_tokens,
-                        },
-                        # temperature=self.temperature, # No temp if thinking
+                        max_completion_tokens=self.max_tokens,
+                        seed=self.seed,
+                        reasoning_effort=self.reasoning_effort,
                     )
-                    # Model outputs thinking and text blocks. Need to parse accordingly
-                    content = [c.text for c in response.content if c.type == "text"][0]
+                    content = response.choices[0].message.content
 
-            elif self.model_key.startswith("gpt"):
-                if self.use_litellm:
-                    completion_method = self.client.completion_create
+                else:  # vLLM models
+                    response = self.client.chat.completions.create(
+                        model=self.model_id,
+                        messages=messages,
+                        max_tokens=self.max_tokens,
+                        temperature=self.temperature,
+                        seed=self.seed,
+                    )
+                    content = response.choices[0].message.content
+                
+                # If successful, break the retry loop
+                break
+                
+            except Exception as e:
+                is_rate_limit = False
+                if isinstance(e, anthropic.RateLimitError) or isinstance(e, openai.RateLimitError):
+                    is_rate_limit = True
+                elif "RateLimitError" in str(type(e)) or "429" in str(e):
+                    is_rate_limit = True
+                elif "OverloadedError" in str(type(e)) or "529" in str(e):
+                    is_rate_limit = True
+                elif "InternalServerError" in str(type(e)) or "500" in str(e) or "502" in str(e) or "503" in str(e):
+                    is_rate_limit = True
+                elif "APIConnectionError" in str(type(e)):
+                    is_rate_limit = True
+                    
+                if is_rate_limit:
+                    if attempt == max_retries - 1:
+                        print("DEBUG: Max retries exceeded for RateLimitError")
+                        raise e
+                    sleep_time = (base_delay ** attempt) + random.uniform(0, 1)
+                    print(f"DEBUG: Rate limited. Retrying in {sleep_time:.2f}s... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(sleep_time)
                 else:
-                    completion_method = self.client.chat.completions.create
+                    print(f"Error occurred with model {self.model_key} for {self.role}: {e}")
+                    # raise e
+                    import traceback
+                    traceback.print_exc()
+                    return None    
 
-                response = completion_method(
-                    model=self.model_id,
-                    messages=messages,
-                    max_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                    seed=self.seed,
-                )
-                content = response.choices[0].message.content
-            elif self.model_key.startswith("o1") or self.model_key.startswith("o3"):
-                response = self.client.chat.completions.create(
-                    model=self.model_id,
-                    messages=messages,
-                    max_completion_tokens=self.max_tokens,
-                    seed=self.seed,
-                    reasoning_effort=self.reasoning_effort,
-                )
-                content = response.choices[0].message.content
+        if append_to_history:
+            self.history.append({"role": "assistant", "content": content})
+        return content
 
-            else:  # vLLM models
-                response = self.client.chat.completions.create(
-                    model=self.model_id,
-                    messages=messages,
-                    max_tokens=self.max_tokens,
-                    temperature=self.temperature,
-                    seed=self.seed,
-                )
-                content = response.choices[0].message.content
-
-            if append_to_history:
-                self.history.append({"role": "assistant", "content": content})
-            return content
-        except Exception as e:
-            print(f"Error occurred with model {self.model_key} for {self.role}: {e}")
-            return None
+        # except Exception as e:
+        #     print(f"Error occurred with model {self.model_key} for {self.role}: {e}")
+        #     import traceback
+        #     traceback.print_exc()
+        #     return None
 
     def reset_used_hints(self):
         if self.is_baseline and self.role == "encoder":
@@ -314,6 +381,22 @@ class RoleClient:
                 prompt, append_to_history=append_to_history
             )
             json_output = extract_json_answer(output)
+            
+            # handles invalid json output
+            if json_output:
+                # "hints" (encode keywords to hints)
+                if self.role == "encoder" and not predict_code and "hints" not in json_output:
+                    print(f"DEBUG: invalid json_output -- encoder: {json_output}")
+                    json_output = None
+                # "keywords" (infer the 4 actual keywords)
+                elif predict_keywords and "keywords" not in json_output:
+                    print(f"DEBUG: invalid json_output -- predict_keywords: {json_output}")
+                    json_output = None
+                # "guess" (decode the indices of 3 hinted keywords)
+                elif (self.role == "decoder" or self.role == "interceptor" or predict_code) and not predict_keywords and "guess" not in json_output:
+                    print(f"DEBUG: invalid json_output -- decoder/interceptor/predict_code: {json_output}")
+                    json_output = None
+
             if json_output:
                 if self.no_error_history and append_to_history:
                     # Remove all intermediate attempts from history

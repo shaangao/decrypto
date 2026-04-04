@@ -1270,16 +1270,24 @@ def run_experiments(cfg):
         local_models_info = get_available_servers()
 
         for model_info in local_models_info:
-            local_model = LocalModel(
-                model_key=model_info["model_key"],
-                model_id=model_info["model_id"],
-                urls=model_info["urls"],
-                temperature=cfg.temperature,
-                max_tokens=cfg.max_tokens,
-                model_seed=cfg.model_seed,
-                job_ids=model_info["job_ids"],
-            )
-            cfg.models.append(local_model)
+
+            # Check if the model already exists in the cfg.models
+            existing_model = next((m for m in cfg.models if m.model_key == model_info["model_key"]), None)
+
+            if existing_model:
+                existing_model.urls.extend(model_info["urls"])
+                existing_model.job_ids.extend(model_info["job_ids"])
+            else:
+                local_model = LocalModel(
+                    model_key=model_info["model_key"],
+                    model_id=model_info["model_id"],
+                    urls=model_info["urls"],
+                    temperature=cfg.temperature,
+                    max_tokens=cfg.max_tokens,
+                    model_seed=cfg.model_seed,
+                    job_ids=model_info["job_ids"],
+                )
+                cfg.models.append(local_model)
     models = cfg.models
 
     # TODO: Make configs for this
