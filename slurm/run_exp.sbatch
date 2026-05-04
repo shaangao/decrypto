@@ -26,10 +26,16 @@ while true; do
 done
 
 # 2. Run the experiments
-# python run.py --config-path=config/paper --config-name=figure_4_tom_piaget_test +get_models_from_slurm=true exp_name=figure_4_tom_piaget_vllm
-# python run.py --config-path=config/paper --config-name=figure_4_tom_gopnik_test +get_models_from_slurm=true exp_name=figure_4_tom_gopnik_vllm
-python run.py --config-path=config/paper --config-name=figure_4_tom_piaget +get_models_from_slurm=true exp_name=figure_4_tom_piaget_all
-# python run.py --config-path=config/paper --config-name=figure_4_tom_gopnik +get_models_from_slurm=true exp_name=figure_4_tom_gopnik_all
+python run.py \
+    --config-path=config/paper \
+    --config-name=figure_4_tom_piaget \
+    +get_models_from_slurm=true \
+    exp_name=figure_4_tom_piaget_qwen3_4b
+# python run.py \
+#     --config-path=config/paper \
+#     --config-name=figure_4_tom_gopnik \
+#     +get_models_from_slurm=true \
+#     exp_name=figure_4_tom_gopnik_qwen3_4b
 
 # # 3. Clean up: Kill the vLLM servers to save GPU quota
 # if [ -n "$SERVER_JIDS" ]; then

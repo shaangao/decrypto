@@ -4,19 +4,32 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import json
+import os
 import subprocess
 
+
+# for automatically get available servers from slurm job names
 agent_paths = {
     "llama3.2_1B": "meta-llama/Llama-3.2-1B-Instruct",
     "llama3.1_8B": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "llama3.1_70B": "meta-llama/Meta-Llama-3.1-70B-Instruct",
     "deepseek_r1_32B": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",  # DeepSeek R1 Distilled
     "qwen2_1.5B": "Qwen/Qwen2-1.5B",
+    "qwen3_4b": "Qwen/Qwen3-4B",
+    "qwen3_8b": "Qwen/Qwen3-8B",
+    # "qwen3_4b_hanabi": "/net/projects2/ycleong/sg/strategy-rl/MARSHAL/results/hf_models/selfplay/hanabi_selfplay",
 }
 
 
-def get_available_servers():
-    # Run squeue and capture output
+def _load_servers_from_file(path):
+    """Read pre-built server list written by run_all.sbatch."""
+    with open(path) as f:
+        return json.load(f)
+
+
+def _discover_servers_from_squeue():
+    """Original discovery: parse squeue job names like 'model_key:port'."""
     result = subprocess.run(
         ["squeue", "--me", "-o", '"%j, %N, %T, %i"'], capture_output=True, text=True
     )
@@ -67,6 +80,13 @@ def get_available_servers():
                 continue
 
     return local_models
+
+
+def get_available_servers():
+    servers_file = os.environ.get("DECRYPTO_SERVERS_FILE")
+    if servers_file and os.path.exists(servers_file):
+        return _load_servers_from_file(servers_file)
+    return _discover_servers_from_squeue()
 
 
 if __name__ == "__main__":

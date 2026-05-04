@@ -6,16 +6,14 @@ num_episodes: 32
 env_seed: [0,1,2]
 verbose: false
 baseline_data_dir: embedding_models/
-exp_name: figure_4_tom_gopnik
-gopnik: true
-# fixed_encoder: qwen3_4b
-fixed_encoder: llama3.1_70B  # eval target is the interceptor so we fix the encoder and decoder
-# fixed_encoder: deepseek_r1_32B
-# fixed_decoder: qwen3_4b
-fixed_decoder: llama3.1_70B
-# fixed_decoder: deepseek_r1_32B
-fixed_interceptor: ""
+exp_name: figure_4_tom_piaget
+piaget: true
+fixed_interceptor: qwen3_4b
+# fixed_interceptor: llama3.1_8B
+# fixed_interceptor: llama3.1_70B
+# fixed_interceptor: llama3.1_70B  # eval target is the encoder so we fix the interceptor
 filter_model: ""
+match_encoder_decoder: true
 confirm_include_api_models: true
 no_error_history: true
 models:
@@ -41,7 +39,7 @@ models:
   #   temperature: 0.0
   #   max_tokens: 4000
   #   max_reasoning_tokens: 1024
-  
+
   # - _target_: src.types.LocalModel
   #   model_key: llama3.1_70B
   #   model_id: meta-llama/Meta-Llama-3.1-70B-Instruct
@@ -68,12 +66,12 @@ models:
 
   - _target_: src.types.LocalModel
     model_key: qwen3_4b_hanabi
-    model_id: /net/projects2/ycleong/sg/strategy-rl/MARSHAL/results/hf_models/selfplay/hanabi_selfplay/checkpoint-19
+    model_id: /net/projects2/ycleong/sg/strategy-rl/MARSHAL/results/hf_models/selfplay/hanabi_selfplay
     # urls:
     #     - http://localhost:8000/v1
     max_tokens: 1000
     temperature: 0.0
-
+    
   # - _target_: src.types.OpenAIModel
   #   model_key: o1
   #   model_id: o1
@@ -83,10 +81,10 @@ models:
   #   use_azure: true
   #   api_version: 2024-12-01-preview
   #   api_host_name: OPENAI_HOST_o1  # Azure OpenAI host name, stored in .env file
-  #   # use_litellm: true
-  #   # num_retries: 100
-  #   # provider_route: "azure/"
-    
+  #   reasoning_effort: "high"
+
+  
+
   # - _target_: src.types.LocalModel
   #   model_key: llama3.1_70B
   #   model_id: meta-llama/Meta-Llama-3.1-70B-Instruct
